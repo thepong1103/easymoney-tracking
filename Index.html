@@ -334,7 +334,8 @@
         <strong>Template Variables ที่ต้องใส่ใน EmailJS Template:</strong><br><br>
         Subject: <code>{{subject}}</code><br>
         To Email: <code>{{to_email}}</code><br>
-        Body: <code>{{message}}</code>
+        Body (HTML): <code>{{html_message}}</code><br><br>
+        <strong>⚠ สำคัญ:</strong> ในช่อง Body ของ EmailJS Template ให้เลือก <strong>HTML</strong> mode แล้วใส่เพียง <code>{{html_message}}</code> เพื่อให้ email แสดงผลเป็น HTML ได้ครับ
       </div>
     </div>
   </div>
@@ -651,6 +652,7 @@ async function sendEmailReport(subject, bodyText) {
         to_email: to,
         subject: subject,
         message: bodyText,
+        html_message: bodyText,
       });
     }
     return {ok:true};
@@ -659,43 +661,107 @@ async function sendEmailReport(subject, bodyText) {
   }
 }
 
-function buildReportText(dateStr, actualRecords) {
-  const last = [...actualRecords].sort((a,b)=>toMin(b.time)-toMin(a.time))[0];
-  const first = [...actualRecords].sort((a,b)=>toMin(a.time)-toMin(b.time))[0];
+function buildReportHTML(dateStr, actualRecords) {
+  const sorted = [...actualRecords].sort((a,b)=>toMin(a.time)-toMin(b.time));
+  const last = sorted[sorted.length-1];
+  const first = sorted[0];
   const finalDB = last ? diffB(last) : null;
   const openDB = first ? diffB(first) : null;
-  const maxBT = last ? Math.max(...actualRecords.filter(r=>bankTotal(r)).map(r=>bankTotal(r))) : null;
-  const minDB = actualRecords.filter(r=>diffB(r)!=null).length ? Math.min(...actualRecords.filter(r=>diffB(r)!=null).map(r=>diffB(r))) : null;
+  const maxBT = Math.max(...sorted.filter(r=>bankTotal(r)).map(r=>bankTotal(r)));
+  const minDB = Math.min(...sorted.filter(r=>diffB(r)!=null).map(r=>diffB(r)));
 
-  let rows = actualRecords.sort((a,b)=>toMin(a.time)-toMin(b.time)).map(r=>{
+  const statusColor = finalDB==null?'#888':finalDB>=0?'#1D9E75':finalDB>-5000000?'#BA7517':'#E24B4A';
+  const statusText = finalDB==null?'ไม่มีข้อมูล':finalDB>=0?'✓ ปกติ — Bank พอจ่าย':finalDB>-5000000?'⚠ เฝ้าระวัง':'✗ ขาดสภาพคล่อง';
+
+  const summaryCards = [
+    {label:'Diff (b) เปิดวัน ('+first?.time+')', value:fmt(openDB), color: openDB>=0?'#1D9E75':'#E24B4A'},
+    {label:'Diff (b) ปิดวัน ('+last?.time+')',  value:fmt(finalDB), color: finalDB>=0?'#1D9E75':'#E24B4A'},
+    {label:'Bank Balance สูงสุด',                value:fmt(maxBT),  color:'#378ADD'},
+    {label:'Diff (b) ต่ำสุด',                    value:fmt(minDB),  color: minDB>=0?'#1D9E75':'#E24B4A'},
+  ].map(c=>`
+    <td style="width:25%;padding:0 6px;">
+      <div style="background:#f5f5f2;border-radius:8px;padding:14px 16px;text-align:center;">
+        <div style="font-size:11px;color:#888;margin-bottom:6px;">${c.label}</div>
+        <div style="font-size:17px;font-weight:700;color:${c.color};">${c.value}</div>
+      </div>
+    </td>`).join('');
+
+  const tableRows = sorted.map(r=>{
     const bt = bankTotal(r);
     const db = diffB(r);
-    return `${r.time.padEnd(6)} | CIMB: ${String(r.cimb||0).padStart(14)} | K4433: ${String(r.k4433||0).padStart(12)} | Total Bank: ${String(Math.round(bt||0)).padStart(14)} | Avail.W: ${String(Math.round(r.availWithdraw||0)).padStart(14)} | Diff(b): ${String(Math.round(db||0)).padStart(14)}`;
-  }).join('\n');
+    const dbColor = db!=null&&db<0?'#E24B4A':db!=null?'#1D9E75':'#888';
+    const rowBg = db!=null&&db<0?'#fff5f5':db!=null&&db>=0?'#f5fdf9':'#fff';
+    return `<tr style="background:${rowBg};">
+      <td style="padding:8px 12px;font-weight:600;border-bottom:1px solid #eee;">${r.time}</td>
+      <td style="padding:8px 12px;text-align:right;border-bottom:1px solid #eee;">${fmt(r.cimb)}</td>
+      <td style="padding:8px 12px;text-align:right;border-bottom:1px solid #eee;">${fmt(r.k4433)}</td>
+      <td style="padding:8px 12px;text-align:right;font-weight:600;border-bottom:1px solid #eee;">${fmt(bt)}</td>
+      <td style="padding:8px 12px;text-align:right;border-bottom:1px solid #eee;">${fmt(r.pendingTotal)}</td>
+      <td style="padding:8px 12px;text-align:right;border-bottom:1px solid #eee;">${fmt(r.availWithdraw)}</td>
+      <td style="padding:8px 12px;text-align:right;font-weight:700;color:${dbColor};border-bottom:1px solid #eee;">${fmt(db)}</td>
+    </tr>`;
+  }).join('');
 
-  return `EasyMoney Tracking — รายงานสรุปประจำวัน
-วันที่: ${dateStr}
-────────────────────────────────────────────────────────────────
+  return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f0ede8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+<div style="max-width:680px;margin:32px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
 
-สรุปผลวัน:
-• Diff (b) เปิดวัน (${first?.time||'—'}): ${fmt(openDB)}
-• Diff (b) ปิดวัน (${last?.time||'—'}): ${fmt(finalDB)}
-• Bank Balance สูงสุด: ${fmt(maxBT)}
-• Diff (b) ต่ำสุด: ${fmt(minDB)}
-• สถานะปิดวัน: ${finalDB==null?'ไม่มีข้อมูล':finalDB>=0?'✓ ปกติ — Bank พอจ่าย':finalDB>-5000000?'⚠ เฝ้าระวัง':'✗ ขาดสภาพคล่อง'}
+  <!-- Header -->
+  <div style="background:#1a1a18;padding:28px 32px;">
+    <div style="font-size:11px;color:#888;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">รายงานสรุปประจำวัน</div>
+    <div style="font-size:22px;font-weight:700;color:#ffffff;">EasyMoney Tracking</div>
+    <div style="font-size:13px;color:#aaa;margin-top:4px;">${dateStr}</div>
+  </div>
 
-รายละเอียดรายชั่วโมง:
-${rows}
+  <!-- Status banner -->
+  <div style="background:${statusColor};padding:12px 32px;">
+    <div style="font-size:14px;font-weight:600;color:#ffffff;">${statusText}</div>
+  </div>
 
-────────────────────────────────────────────────────────────────
-ส่งโดยอัตโนมัติจาก EasyMoney Tracking System`;
+  <!-- Summary cards -->
+  <div style="padding:24px 26px 8px;">
+    <div style="font-size:11px;font-weight:600;color:#888;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:12px;">สรุปผลวัน</div>
+    <table style="width:100%;border-collapse:collapse;"><tr>${summaryCards}</tr></table>
+  </div>
+
+  <!-- Detail table -->
+  <div style="padding:24px 32px 32px;">
+    <div style="font-size:11px;font-weight:600;color:#888;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:12px;">รายละเอียดรายชั่วโมง</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead>
+        <tr style="background:#f5f5f2;">
+          <th style="padding:9px 12px;text-align:left;font-size:10px;color:#888;font-weight:600;letter-spacing:0.05em;border-bottom:2px solid #eee;">เวลา</th>
+          <th style="padding:9px 12px;text-align:right;font-size:10px;color:#888;font-weight:600;letter-spacing:0.05em;border-bottom:2px solid #eee;">CIMB (C)</th>
+          <th style="padding:9px 12px;text-align:right;font-size:10px;color:#888;font-weight:600;letter-spacing:0.05em;border-bottom:2px solid #eee;">K4433 (D)</th>
+          <th style="padding:9px 12px;text-align:right;font-size:10px;color:#888;font-weight:600;letter-spacing:0.05em;border-bottom:2px solid #eee;">Total Bank</th>
+          <th style="padding:9px 12px;text-align:right;font-size:10px;color:#888;font-weight:600;letter-spacing:0.05em;border-bottom:2px solid #eee;">Pending (G)</th>
+          <th style="padding:9px 12px;text-align:right;font-size:10px;color:#888;font-weight:600;letter-spacing:0.05em;border-bottom:2px solid #eee;">Avail.W (K)</th>
+          <th style="padding:9px 12px;text-align:right;font-size:10px;color:#888;font-weight:600;letter-spacing:0.05em;border-bottom:2px solid #eee;">Diff (b)</th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  </div>
+
+  <!-- Footer -->
+  <div style="background:#f5f5f2;padding:16px 32px;border-top:1px solid #eee;">
+    <div style="font-size:11px;color:#aaa;">ส่งโดยอัตโนมัติจาก EasyMoney Tracking System &nbsp;·&nbsp; ${dateStr}</div>
+  </div>
+
+</div>
+</body></html>`;
 }
 
 async function testEmail() {
   const msg = document.getElementById('settingsMsg');
   msg.textContent = 'กำลังส่ง...';
   msg.style.color = 'var(--amber)';
-  const result = await sendEmailReport('[TEST] EasyMoney Test Email', 'นี่คือ email ทดสอบจากระบบ EasyMoney Tracking');
+  const testHtml = `<div style="font-family:sans-serif;padding:24px;background:#f5f5f2;border-radius:8px;">
+    <h2 style="color:#1a1a18;margin-bottom:8px;">🧪 EasyMoney — Test Email</h2>
+    <p style="color:#666;">ถ้าได้รับ email นี้ แสดงว่า EmailJS Config ถูกต้องแล้วครับ</p>
+  </div>`;
+  const result = await sendEmailReport('[TEST] EasyMoney Test Email', testHtml);
   if(result.ok) { msg.textContent = '✓ ส่ง Test Email สำเร็จ'; msg.style.color='var(--teal)'; }
   else { msg.textContent = result.msg; msg.style.color='var(--red)'; }
 }
@@ -718,7 +784,7 @@ async function endOfDay() {
 
   // Build report
   const subject = `EasyMoney สรุปประจำวัน — ${dateStr}`;
-  const body = buildReportText(dateStr, actualRecords);
+  const body = buildReportHTML(dateStr, actualRecords);
 
   // Send email
   const result = await sendEmailReport(subject, body);
