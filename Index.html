@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EasyMoney Tracking</title>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #f9f9f7; --surface: #ffffff; --surface2: #f2f1ed;
+    --border: rgba(0,0,0,0.1); --border2: rgba(0,0,0,0.2);
+    --text: #1a1a18; --text2: #6b6b68; --text3: #9b9b98;
+    --teal: #1D9E75; --teal-bg: #E1F5EE; --teal-text: #085041;
+    --red: #E24B4A; --red-bg: #FCEBEB; --red-text: #A32D2D;
+    --amber: #BA7517; --amber-bg: #FAEEDA; --amber-text: #633806;
+    --blue: #378ADD; --radius: 8px; --radius-lg: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+  .app { max-width: 900px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+  
+  /* Header */
+  .header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 1.5rem; }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header .date { font-size: 13px; color: var(--text2); }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: var(--radius); font-size: 11px; font-weight: 600; }
+  .badge-pos { background: var(--teal-bg); color: var(--teal-text); }
+  .badge-neg { background: var(--red-bg); color: var(--red-text); }
+  .badge-warn { background: var(--amber-bg); color: var(--amber-text); }
+  
+  /* Status bar */
+  .status-bar { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: var(--radius); background: var(--surface2); margin-bottom: 1.5rem; font-size: 12px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot-ok { background: var(--teal); }
+  .dot-warn { background: var(--amber); }
+  .dot-danger { background: var(--red); }
+  
+  /* Tabs */
+  .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 1.5rem; gap: 0; }
+  .tab { padding: 10px 18px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; background: transparent; color: var(--text2); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--text); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  
+  /* Metrics */
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
+  .metric { background: var(--surface2); border-radius: var(--radius); padding: 14px 16px; }
+  .metric .m-label { font-size: 11px; color: var(--text2); margin-bottom: 6px; }
+  .metric .m-value { font-size: 19px; font-weight: 600; line-height: 1.2; }
+  .metric .m-sub { font-size: 11px; margin-top: 4px; color: var(--text2); }
+  .positive { color: var(--teal); }
+  .negative { color: var(--red); }
+  
+  /* Section title */
+  .section-title { font-size: 11px; font-weight: 600; color: var(--text2); letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 10px; margin-top: 1.5rem; }
+  
+  /* Scenario card */
+  .scenario-card { background: var(--surface); border: 1.5px solid #EF9F27; border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.5rem; }
+  .scenario-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+  .scenario-card p { font-size: 12px; color: var(--text2); margin-bottom: 14px; }
+  .scenario-results { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .sr-item { background: var(--surface2); border-radius: var(--radius); padding: 12px 14px; }
+  .sr-item.highlight-ok { border: 1.5px solid var(--teal); }
+  .sr-item.highlight-bad { border: 1.5px solid var(--red); }
+  .sr-item.highlight-warn { border: 1.5px solid var(--amber); }
+  .sr-label { font-size: 11px; color: var(--text2); margin-bottom: 5px; }
+  .sr-val { font-size: 16px; font-weight: 600; }
+  .sr-sub { font-size: 11px; color: var(--text2); margin-top: 3px; }
+  
+  /* Insight grid */
+  .insight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 10px; margin-bottom: 1.5rem; }
+  .insight-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; }
+  .i-label { font-size: 11px; color: var(--text2); margin-bottom: 6px; }
+  .i-val { font-size: 17px; font-weight: 600; }
+  .i-sub { font-size: 12px; color: var(--text2); margin-top: 5px; line-height: 1.6; }
+  
+  /* Chart */
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.5rem; }
+  .chart-card h3 { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .chart-card p { font-size: 12px; color: var(--text2); margin-bottom: 12px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text2); margin-bottom: 12px; }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .ldot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  
+  /* Form */
+  .form-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.5rem; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 12px; }
+  label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+  input[type=number], input[type=time], input[type=text], select {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border2); border-radius: var(--radius);
+    font-size: 13px; background: var(--surface); color: var(--text); outline: none;
+  }
+  input:focus, select:focus { border-color: var(--blue); }
+  input[readonly] { background: var(--surface2); cursor: default; }
+  .time-toggle { display: flex; border: 1px solid var(--border2); border-radius: var(--radius); overflow: hidden; margin-bottom: 14px; }
+  .time-toggle button { flex: 1; border: none; background: transparent; font-size: 12px; cursor: pointer; color: var(--text2); padding: 8px 6px; }
+  .time-toggle button.active { background: var(--text); color: white; font-weight: 600; }
+  .time-toggle button:hover:not(.active) { background: var(--surface2); }
+  .cf-note { font-size: 11px; color: var(--text2); margin-top: 10px; padding: 8px 12px; background: var(--surface2); border-radius: var(--radius); }
+  .form-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+  .btn { padding: 8px 16px; border-radius: var(--radius); font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid var(--border2); background: transparent; color: var(--text); }
+  .btn:hover { background: var(--surface2); }
+  .btn-primary { background: var(--text); color: white; border-color: var(--text); }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-danger { color: var(--red); border-color: var(--red); }
+  .btn-danger:hover { background: var(--red-bg); }
+  .form-msg { font-size: 12px; }
+  
+  /* Table */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 1.5rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 680px; }
+  thead tr { border-bottom: 1px solid var(--border); background: var(--surface2); }
+  th { padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text2); letter-spacing: 0.04em; white-space: nowrap; }
+  th.r { text-align: right; }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.r { text-align: right; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  .pred-row td { background: #FAEEDA18; }
+  .pred-row:hover td { background: #FAC77520; }
+  .stag { display: inline-block; padding: 1px 7px; border-radius: var(--radius); font-size: 10px; font-weight: 600; }
+  .ptag { background: var(--amber-bg); color: var(--amber-text); font-size: 9px; padding: 1px 5px; border-radius: 4px; margin-right: 2px; }
+  .cftag { background: var(--surface2); color: var(--text2); font-size: 9px; padding: 1px 5px; border-radius: 4px; margin-right: 2px; }
+  
+  /* Email setup */
+  .email-setup { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.5rem; }
+  .email-setup h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .setup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .email-status { font-size: 12px; padding: 8px 12px; border-radius: var(--radius); margin-top: 10px; }
+  .email-status.ok { background: var(--teal-bg); color: var(--teal-text); }
+  .email-status.err { background: var(--red-bg); color: var(--red-text); }
+  
+  /* History tab */
+  .day-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1rem; }
+  .day-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .day-card .day-meta { font-size: 12px; color: var(--text2); margin-bottom: 12px; }
+  .day-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .ds { background: var(--surface2); border-radius: var(--radius); padding: 10px 12px; }
+  .ds-label { font-size: 10px; color: var(--text2); margin-bottom: 3px; }
+  .ds-val { font-size: 14px; font-weight: 600; }
+  .no-history { text-align: center; padding: 3rem 1rem; color: var(--text2); font-size: 13px; }
+
+  /* Predict note */
+  .predict-note { font-size: 11px; color: var(--text2); padding: 8px 12px; background: var(--surface2); border-radius: var(--radius); margin-bottom: 1rem; }
+
+  @media (max-width: 480px) {
+    .app { padding: 1rem 0.75rem 4rem; }
+    .metrics { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div>
+      <h1>EasyMoney Tracking</h1>
+      <div class="date" id="headerDate"></div>
+    </div>
+    <div id="headerBadge" class="badge badge-warn">กำลังโหลด...</div>
+  </div>
+
+  <div id="statusBar" class="status-bar">
+    <div class="dot dot-warn" id="statusDot"></div>
+    <span id="statusMsg">กำลังโหลดข้อมูล...</span>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('today')">วันนี้</button>
+    <button class="tab" onclick="switchTab('history')">ประวัติรายวัน</button>
+    <button class="tab" onclick="switchTab('settings')">ตั้งค่า Email</button>
+  </div>
+
+  <!-- TODAY TAB -->
+  <div id="tab-today" class="tab-panel active">
+    <div class="metrics" id="metricsRow"></div>
+
+    <!-- Scenario -->
+    <div class="section-title">Available Withdrawal (Input) — คำนวณยอดคงเหลือ</div>
+    <div class="scenario-card">
+      <h3>กรอก Available Withdrawal ที่จะใช้จ่ายออกไป</h3>
+      <p>อ้างอิงจากข้อมูลล่าสุด — คำนวณทันทีเมื่อกรอก</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;">
+        <div><label>Available Withdrawal (Input) — col K (฿)</label>
+          <input type="number" id="sAvailInput" placeholder="เช่น 37296463" oninput="renderScenario()" /></div>
+        <div style="font-size:12px;color:var(--text2);padding-bottom:8px;">ระบบคำนวณว่า Bank จะเหลือเท่าไหร่ทันที</div>
+      </div>
+      <div class="scenario-results" id="scenarioResult"></div>
+    </div>
+
+    <!-- Insight -->
+    <div class="insight-grid" id="insightGrid"></div>
+
+    <!-- Chart -->
+    <div class="chart-card">
+      <h3>ยอดเงินรายชั่วโมง — วันนี้</h3>
+      <p>เส้นทึบ = ข้อมูลจริง &nbsp;|&nbsp; เส้นประ = คาดการณ์จาก pattern</p>
+      <div class="legend">
+        <span><span class="ldot" style="background:#378ADD;"></span>Total Bank Balance</span>
+        <span><span class="ldot" style="background:#1D9E75;"></span>Pending Settlement (G)</span>
+        <span><span class="ldot" style="background:#E24B4A;"></span>Diff (b)</span>
+        <span><span class="ldot" style="background:#BA7517;opacity:0.7;"></span>คาดการณ์</span>
+      </div>
+      <div style="position:relative;width:100%;height:260px;">
+        <canvas id="mainChart" role="img" aria-label="กราฟยอดเงินรายชั่วโมง"></canvas>
+      </div>
+    </div>
+
+    <div class="predict-note">
+      <strong>วิธี Predict:</strong> ใช้ข้อมูล 11 วันย้อนหลัง — Diff (b) มักติดลบตอนเช้า และดีขึ้นเรื่อยๆ ตลอดวัน เพราะ Withdraw Success สะสมเพิ่มขึ้น ระบบปรับด้วย hourly improvement weights จาก pattern เฉลี่ย
+    </div>
+
+    <!-- Form -->
+    <div class="section-title">กรอกข้อมูลรายชั่วโมง</div>
+    <div class="form-card">
+      <div style="margin-bottom:14px;">
+        <label style="margin-bottom:6px;">รูปแบบการกรอกเวลา</label>
+        <div class="time-toggle">
+          <button id="btnDropdown" class="active" onclick="setTimeMode('dropdown')">เลือกจาก list</button>
+          <button id="btnFreeform" onclick="setTimeMode('freeform')">กรอกเวลาเอง</button>
+          <button id="btnNow" onclick="setTimeMode('now')">เวลาปัจจุบัน</button>
+        </div>
+      </div>
+      <div id="timeDropdownWrap" style="margin-bottom:14px;">
+        <label>เวลา</label>
+        <select id="fTimeDropdown">
+          <option>06:00</option><option>07:00</option><option>08:00</option><option>09:00</option>
+          <option>10:00</option><option>11:00</option><option>12:00</option><option>13:00</option>
+          <option>14:00</option><option>15:00</option><option>16:00</option><option>17:00</option>
+          <option>18:00</option>
+        </select>
+      </div>
+      <div id="timeFreeformWrap" style="display:none;margin-bottom:14px;">
+        <label>กรอกเวลาเอง</label>
+        <input type="time" id="fTimeFreeform" />
+        <div style="font-size:11px;color:var(--text2);margin-top:4px;">กรอกเวลาจริง เช่น 09:34, 14:07</div>
+      </div>
+      <div id="timeNowWrap" style="display:none;margin-bottom:14px;">
+        <div style="display:flex;align-items:flex-end;gap:8px;">
+          <div style="flex:1;"><label>เวลาปัจจุบัน</label>
+            <input type="text" id="fTimeNowDisplay" readonly /></div>
+          <button class="btn" onclick="refreshNow()" style="flex-shrink:0;">↺ รีเฟรช</button>
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-top:4px;">บันทึกเวลา ณ ขณะนี้</div>
+      </div>
+      <div class="form-grid">
+        <div><label>CIMB Balance — col C (฿)</label><input type="number" id="fCIMB" placeholder="เช่น 31421882" /></div>
+        <div><label>K4433 Balance — col D (฿)</label><input type="number" id="fK4433" placeholder="เช่น 592054" /></div>
+        <div><label>Pending Settlement Total — col G (฿)</label><input type="number" id="fPendingTotal" placeholder="เช่น 33601926" /></div>
+        <div><label>Ezpay Daily Wallet — col H (฿)</label><input type="number" id="fDailyWallet" placeholder="เช่น 25000000" /></div>
+        <div><label>Available Withdrawal — col K (฿)</label><input type="number" id="fAvailWithdraw" placeholder="เช่น 25000000" /></div>
+      </div>
+      <div class="cf-note">ช่องที่ไม่ได้กรอก ระบบจะใช้ค่าจากเวลาก่อนหน้าโดยอัตโนมัติ (carry forward)</div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="addEntry()">+ บันทึกข้อมูล</button>
+        <button class="btn" onclick="clearForm()">ล้างฟอร์ม</button>
+        <span id="formMsg" class="form-msg"></span>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="section-title">ตารางข้อมูลวันนี้</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>เวลา</th>
+          <th class="r">CIMB (C)</th>
+          <th class="r">K4433 (D)</th>
+          <th class="r">Total Bank</th>
+          <th class="r">Pending (G)</th>
+          <th class="r">Daily Wallet (H)</th>
+          <th class="r">Avail. Withdrawal (K)</th>
+          <th class="r">Diff (b)</th>
+          <th style="text-align:center;">สถานะ</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- End of day action -->
+    <div class="section-title">สรุปปิดวัน</div>
+    <div class="form-card" style="background:var(--surface2);">
+      <div style="font-size:14px;font-weight:600;margin-bottom:6px;">ส่งรายงานสรุปและปิดวัน</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">ระบบจะส่ง email สรุปไปที่ sudket@t2pco.com และ piyamas.pl@t2pco.com แล้วบันทึกข้อมูลวันนี้ไว้ในประวัติ จากนั้นล้างข้อมูลเพื่อเริ่มวันใหม่</div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="endOfDay()">📧 ส่งรายงานและปิดวัน</button>
+        <span id="eodMsg" class="form-msg"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY TAB -->
+  <div id="tab-history" class="tab-panel">
+    <div class="section-title">ประวัติรายวันทั้งหมด</div>
+    <div id="historyList"></div>
+  </div>
+
+  <!-- SETTINGS TAB -->
+  <div id="tab-settings" class="tab-panel">
+    <div class="section-title">ตั้งค่า EmailJS</div>
+    <div class="email-setup">
+      <h3>🔑 ใส่ Key จาก EmailJS</h3>
+      <div class="setup-grid">
+        <div><label>Public Key (User ID)</label>
+          <input type="text" id="ejPublicKey" placeholder="เช่น user_xxxxxxxxxxxx" /></div>
+        <div><label>Service ID</label>
+          <input type="text" id="ejServiceId" placeholder="เช่น service_xxxxxxx" /></div>
+        <div><label>Template ID</label>
+          <input type="text" id="ejTemplateId" placeholder="เช่น template_xxxxxxx" /></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="saveEmailConfig()">💾 บันทึก Config</button>
+        <button class="btn" onclick="testEmail()">📧 ทดสอบส่ง Email</button>
+        <span id="settingsMsg" class="form-msg"></span>
+      </div>
+      <div id="emailStatusMsg"></div>
+    </div>
+
+    <div class="section-title">วิธีตั้งค่า EmailJS (ฟรี)</div>
+    <div class="form-card">
+      <ol style="padding-left:1.25rem;font-size:13px;line-height:2.2;">
+        <li>ไปที่ <strong>emailjs.com</strong> แล้วสมัครบัญชีฟรี</li>
+        <li>เพิ่ม <strong>Email Service</strong> (เลือก Gmail แล้วเชื่อม Google account)</li>
+        <li>สร้าง <strong>Email Template</strong> โดยใส่เนื้อหาด้านล่างนี้</li>
+        <li>คัดลอก <strong>Public Key, Service ID, Template ID</strong> มาใส่ในฟอร์มด้านบน</li>
+        <li>กด <strong>บันทึก Config</strong> แล้วทดสอบส่ง Email</li>
+      </ol>
+      <div style="margin-top:1rem;padding:1rem;background:var(--surface2);border-radius:var(--radius);font-size:12px;">
+        <strong>Template Variables ที่ต้องใส่ใน EmailJS Template:</strong><br><br>
+        Subject: <code>{{subject}}</code><br>
+        To Email: <code>{{to_email}}</code><br>
+        Body: <code>{{message}}</code>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────
+const RECIPIENTS = ['sudket@t2pco.com', 'piyamas.pl@t2pco.com'];
+
+const HOUR_IMPROVEMENT_WEIGHTS = {
+  6:0.00, 7:0.02, 8:0.08, 9:0.15, 10:0.25, 11:0.35,
+  12:0.45, 13:0.58, 14:0.68, 15:0.75, 16:0.82, 17:0.88, 18:0.92
+};
+
+// ─── STATE ────────────────────────────────────────────────
+let timeMode = 'dropdown';
+let records = [];
+let history = JSON.parse(localStorage.getItem('em_history') || '[]');
+let emailConfig = JSON.parse(localStorage.getItem('em_emailconfig') || '{}');
+let chartInstance = null;
+
+// ─── UTILS ────────────────────────────────────────────────
+function toMin(t) { const [h,m]=t.split(':').map(Number); return h*60+(m||0); }
+function bankTotal(r) { return r.cimb!=null ? r.cimb+(r.k4433||0) : null; }
+function diffB(r) { const bt=bankTotal(r); return (bt!=null&&r.availWithdraw!=null) ? bt-r.availWithdraw : null; }
+function fmt(n) { if(n==null) return '—'; return (n<0?'-':'')+'฿'+Math.abs(Math.round(n)).toLocaleString('th-TH'); }
+function fmtS(n) {
+  if(n==null) return '—';
+  const a=Math.abs(n);
+  let s;
+  if(a>=1e9) s=(a/1e9).toFixed(2)+'B';
+  else if(a>=1e6) s=(a/1e6).toFixed(2)+'M';
+  else if(a>=1e3) s=(a/1e3).toFixed(1)+'K';
+  else s=Math.round(a).toString();
+  return (n<0?'-':'')+'฿'+s;
+}
+function todayStr() {
+  const d = new Date();
+  return d.toLocaleDateString('th-TH', {weekday:'short',day:'numeric',month:'short',year:'numeric'});
+}
+function todayKey() {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2,'0')}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getFullYear()).slice(-2)}`;
+}
+
+// ─── TIME MODE ────────────────────────────────────────────
+function setTimeMode(m) {
+  timeMode = m;
+  ['Dropdown','Freeform','Now'].forEach(x => {
+    const k = x.toLowerCase();
+    document.getElementById('btn'+x).className = m===k ? 'active' : '';
+    document.getElementById('time'+x+'Wrap').style.display = m===k ? '' : 'none';
+  });
+  if(m==='now') refreshNow();
+}
+function refreshNow() {
+  const n = new Date();
+  document.getElementById('fTimeNowDisplay').value = String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
+}
+function getSelectedTime() {
+  if(timeMode==='dropdown') return document.getElementById('fTimeDropdown').value;
+  if(timeMode==='freeform') { const v=document.getElementById('fTimeFreeform').value; return v?v.substring(0,5):null; }
+  if(timeMode==='now') { refreshNow(); return document.getElementById('fTimeNowDisplay').value; }
+  return null;
+}
+
+// ─── CARRY FORWARD ────────────────────────────────────────
+function getLastActual(beforeTime) {
+  return [...records].filter(r=>!r.predicted&&toMin(r.time)<toMin(beforeTime))
+    .sort((a,b)=>toMin(b.time)-toMin(a.time))[0] || null;
+}
+function carryForward(entry) {
+  const prev = getLastActual(entry.time);
+  if(!prev) return entry;
+  const f = {...entry};
+  ['cimb','k4433','pendingTotal','dailyWallet','availWithdraw'].forEach(k=>{
+    if(f[k]==null && prev[k]!=null) f[k] = prev[k];
+  });
+  return f;
+}
+function getLatestActual() {
+  return [...records].filter(r=>!r.predicted&&bankTotal(r)!=null)
+    .sort((a,b)=>toMin(b.time)-toMin(a.time))[0] || null;
+}
+
+// ─── PREDICT ──────────────────────────────────────────────
+function computePredictions() {
+  records = records.filter(r=>!r.predicted);
+  const actual = [...records].filter(r=>bankTotal(r)!=null).sort((a,b)=>toMin(a.time)-toMin(b.time));
+  if(!actual.length) return;
+
+  const first = actual[0];
+  const last = actual[actual.length-1];
+  const lastMin = toMin(last.time);
+  const lastHour = Math.floor(lastMin/60);
+  const morningDB = diffB(first) || -15000000;
+  const lastDB = diffB(last);
+
+  let trendRate = {cimb:0, pendingTotal:0, availWithdraw:0, dailyWallet:0};
+  if(actual.length >= 2) {
+    const prev = actual[actual.length-2];
+    const span = toMin(last.time)-toMin(prev.time) || 60;
+    trendRate.cimb = (last.cimb-prev.cimb)/span;
+    trendRate.pendingTotal = ((last.pendingTotal||0)-(prev.pendingTotal||0))/span;
+    trendRate.availWithdraw = ((last.availWithdraw||0)-(prev.availWithdraw||0))/span;
+    trendRate.dailyWallet = ((last.dailyWallet||0)-(prev.dailyWallet||0))/span;
+  }
+
+  const filled = new Set(records.map(r=>r.time));
+  for(let m=lastMin+60; m<=18*60; m+=60) {
+    const h = String(Math.floor(m/60)).padStart(2,'0')+':00';
+    if(filled.has(h)) continue;
+    const hourNum = Math.floor(m/60);
+    const delta = m - lastMin;
+    const predCIMB = Math.round(last.cimb + trendRate.cimb*delta);
+    const predPending = Math.round((last.pendingTotal||0) + trendRate.pendingTotal*delta);
+    const predDaily = Math.round((last.dailyWallet||0) + trendRate.dailyWallet*delta);
+    const wLast = HOUR_IMPROVEMENT_WEIGHTS[Math.min(lastHour,18)] || 0;
+    const wPred = HOUR_IMPROVEMENT_WEIGHTS[Math.min(hourNum,18)] || 0;
+    const remainingImprovement = 1-wLast;
+    const fractionUsed = remainingImprovement>0 ? (wPred-wLast)/remainingImprovement : 0;
+    const totalExpectedRecovery = Math.abs(morningDB)*0.9;
+    const alreadyRecovered = lastDB!=null ? (lastDB-morningDB) : 0;
+    const remainingRecovery = totalExpectedRecovery-alreadyRecovered;
+    const predAvailChange = -(remainingRecovery*fractionUsed*0.6);
+    const predAvail = Math.max(0, Math.round((last.availWithdraw||0)+predAvailChange));
+    records.push({
+      time:h, cimb:predCIMB, k4433:last.k4433, pendingTotal:predPending,
+      dailyWallet:predDaily, availWithdraw:predAvail, predicted:true
+    });
+  }
+  records.sort((a,b)=>toMin(a.time)-toMin(b.time));
+}
+
+// ─── RENDER ALL ───────────────────────────────────────────
+function renderAll() {
+  computePredictions();
+  renderStatus();
+  renderMetrics();
+  renderInsights();
+  renderScenario();
+  renderTable();
+  renderChart();
+}
+
+function renderStatus() {
+  const last = getLatestActual();
+  if(!last) return;
+  const db = diffB(last);
+  const dot=document.getElementById('statusDot');
+  const msg=document.getElementById('statusMsg');
+  const badge=document.getElementById('headerBadge');
+  if(db==null) return;
+  if(db>=0){
+    dot.className='dot dot-ok'; badge.className='badge badge-pos'; badge.textContent='สถานะ: ปกติ';
+    msg.textContent='ยอดเงินธนาคารมากกว่า Available Withdrawal — สถานะปลอดภัย';
+  } else if(db>-5000000){
+    dot.className='dot dot-warn'; badge.className='badge badge-warn'; badge.textContent='สถานะ: เฝ้าระวัง';
+    msg.textContent='Diff (b) ติดลบเล็กน้อย — ควรเติม Wallet หรือปรับ Payout';
+  } else {
+    dot.className='dot dot-danger'; badge.className='badge badge-neg'; badge.textContent='สถานะ: ขาดสภาพคล่อง';
+    msg.textContent='Diff (b) ติดลบมาก — ธนาคารไม่เพียงพอต่อ Available Withdrawal';
+  }
+}
+
+function renderMetrics() {
+  const actual = [...records].filter(r=>!r.predicted&&bankTotal(r)!=null).sort((a,b)=>toMin(a.time)-toMin(b.time));
+  if(!actual.length) { document.getElementById('metricsRow').innerHTML='<div style="color:var(--text2);font-size:13px;padding:1rem 0;">ยังไม่มีข้อมูล — กรอกข้อมูลด้านล่างเพื่อเริ่มต้น</div>'; return; }
+  const last=actual[actual.length-1], first=actual[0];
+  const bt=bankTotal(last), db=diffB(last), btChange=bt-bankTotal(first);
+  document.getElementById('metricsRow').innerHTML = `
+    <div class="metric"><div class="m-label">Total Bank Balance</div><div class="m-value">${fmtS(bt)}</div><div class="m-sub ${btChange>=0?'positive':'negative'}">${btChange>=0?'▲':'▼'} ${fmtS(Math.abs(btChange))} จากต้นวัน</div></div>
+    <div class="metric"><div class="m-label">Pending Total (G)</div><div class="m-value">${fmtS(last.pendingTotal)}</div><div class="m-sub" style="color:var(--text2);">Ezpay total balance</div></div>
+    <div class="metric"><div class="m-label">Diff (b) ปัจจุบัน</div><div class="m-value ${db>=0?'positive':'negative'}">${fmtS(db)}</div><div class="m-sub" style="color:var(--text2);">Bank − Avail. Withdrawal</div></div>
+    <div class="metric"><div class="m-label">อัปเดตล่าสุด</div><div class="m-value" style="font-size:22px;">${last.time}</div><div class="m-sub" style="color:var(--text2);">${actual.length} รายการจริง</div></div>
+  `;
+}
+
+function renderInsights() {
+  const actual = [...records].filter(r=>!r.predicted&&bankTotal(r)!=null).sort((a,b)=>toMin(a.time)-toMin(b.time));
+  if(!actual.length) { document.getElementById('insightGrid').innerHTML=''; return; }
+  const last=actual[actual.length-1];
+  const bt=bankTotal(last), db=diffB(last);
+  const predLast=[...records].filter(r=>r.predicted&&bankTotal(r)!=null).sort((a,b)=>toMin(b.time)-toMin(a.time))[0];
+  const eodDB=predLast?diffB(predLast):db;
+  const eodTime=predLast?predLast.time:last.time;
+  const predSorted=[...records].filter(r=>r.predicted&&bankTotal(r)!=null).sort((a,b)=>toMin(a.time)-toMin(b.time));
+  const breakevenRec=predSorted.find(r=>diffB(r)>=0);
+  const breakevenText=breakevenRec?'คาดบวกประมาณ '+breakevenRec.time:(db>=0?'บวกแล้ว':'ยังติดลบตลอดวัน');
+  const minDB=Math.min(...actual.filter(r=>diffB(r)!=null).map(r=>diffB(r)));
+  document.getElementById('insightGrid').innerHTML = `
+    <div class="insight-card"><div class="i-label">Diff (b) ณ ${last.time}</div><div class="i-val ${db>=0?'positive':'negative'}">${fmtS(db)}</div><div class="i-sub">${db>=0?'Bank มีส่วนเกิน '+fmtS(db):'Bank ขาด '+fmtS(Math.abs(db))}</div></div>
+    <div class="insight-card"><div class="i-label">คาดการณ์ Diff (b) (${eodTime})</div><div class="i-val ${eodDB>=0?'positive':'negative'}">${fmtS(eodDB)}</div><div class="i-sub">${breakevenText}</div></div>
+    <div class="insight-card"><div class="i-label">Break-even point</div><div class="i-val" style="color:var(--amber);">${fmt(bt)}</div><div class="i-sub">Avail. Withdrawal ต้องไม่เกินนี้</div></div>
+    <div class="insight-card"><div class="i-label">Diff (b) ต่ำสุดวันนี้</div><div class="i-val ${minDB>=0?'positive':'negative'}">${fmtS(minDB)}</div><div class="i-sub">จุดเสี่ยงที่สุดที่บันทึกได้</div></div>
+  `;
+}
+
+function renderScenario() {
+  const last=getLatestActual();
+  const bt=last?bankTotal(last):null;
+  const availInput=parseFloat(document.getElementById('sAvailInput').value);
+  const remaining=(!isNaN(availInput)&&bt!=null)?bt-availInput:null;
+  const isShort=remaining!=null&&remaining<0;
+  const isEmpty=isNaN(availInput);
+  document.getElementById('scenarioResult').innerHTML = `
+    <div class="sr-item"><div class="sr-label">CIMB Balance (Calculate)</div><div class="sr-val">${fmt(last?last.cimb:null)}</div><div class="sr-sub">จากข้อมูลล่าสุด ${last?'('+last.time+')':''}</div></div>
+    <div class="sr-item"><div class="sr-label">Total Balance (Calculate)</div><div class="sr-val">${fmt(bt)}</div><div class="sr-sub">CIMB + K4433</div></div>
+    <div class="sr-item ${isEmpty?'':isShort?'highlight-bad':'highlight-ok'}"><div class="sr-label">เงินคงเหลือหลังจ่าย</div><div class="sr-val ${isEmpty?'':isShort?'negative':'positive'}">${isEmpty?'—':fmt(remaining)}</div><div class="sr-sub">${isEmpty?'กรอก Available Withdrawal':isShort?'ไม่พอจ่าย — ขาดอีก '+fmtS(Math.abs(remaining)):'เงินพอ เหลือ '+fmtS(remaining)}</div></div>
+    <div class="sr-item ${isEmpty?'':'highlight-warn'}"><div class="sr-label">Break-even</div><div class="sr-val" style="color:var(--amber);">${fmt(bt)}</div><div class="sr-sub">Avail. Withdrawal ห้ามเกินนี้</div></div>
+  `;
+}
+
+function renderTable() {
+  const sorted=[...records].sort((a,b)=>toMin(a.time)-toMin(b.time));
+  if(!sorted.length) { document.getElementById('tableBody').innerHTML='<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text2);">ยังไม่มีข้อมูล</td></tr>'; return; }
+  document.getElementById('tableBody').innerHTML = sorted.map(r=>{
+    const bt=bankTotal(r), db=diffB(r);
+    let st='';
+    if(bt==null) st='<span class="stag" style="background:var(--surface2);color:var(--text2);">ไม่มีข้อมูล</span>';
+    else if(db!=null&&db>=0) st='<span class="stag badge-pos">ปกติ</span>';
+    else if(db!=null&&db>-5000000) st='<span class="stag badge-warn">เฝ้าระวัง</span>';
+    else if(db!=null) st='<span class="stag badge-neg">ขาดสภาพคล่อง</span>';
+    else st='<span class="stag" style="background:var(--surface2);color:var(--text2);">—</span>';
+    const prefix=r.predicted?'<span class="ptag">คาดการณ์</span>':(r.carriedForward?'<span class="cftag">cf</span>':'');
+    const del=!r.predicted?`<button onclick="deleteEntry('${r.time}')" style="background:none;border:none;cursor:pointer;color:var(--text2);font-size:14px;" title="ลบ">🗑</button>`:'';
+    return `<tr class="${r.predicted?'pred-row':''}">
+      <td>${prefix}${r.time}</td>
+      <td class="r">${fmt(r.cimb)}</td><td class="r">${fmt(r.k4433)}</td>
+      <td class="r" style="font-weight:600;">${fmt(bt)}</td>
+      <td class="r">${fmt(r.pendingTotal)}</td><td class="r">${fmt(r.dailyWallet)}</td>
+      <td class="r">${fmt(r.availWithdraw)}</td>
+      <td class="r" style="font-weight:600;color:${db!=null&&db<0?'var(--red)':db!=null?'var(--teal)':'inherit'}">${fmt(db)}</td>
+      <td style="text-align:center;">${st}</td>
+      <td>${del}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderChart() {
+  const sorted=[...records].sort((a,b)=>toMin(a.time)-toMin(b.time));
+  const isPred=sorted.map(r=>r.predicted);
+  const ctx=document.getElementById('mainChart').getContext('2d');
+  if(chartInstance) chartInstance.destroy();
+  chartInstance=new Chart(ctx,{
+    type:'line',
+    data:{labels:sorted.map(r=>r.time),datasets:[
+      {label:'Total Bank Balance',data:sorted.map(r=>bankTotal(r)),borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.07)',tension:0.3,pointRadius:isPred.map(p=>p?3:5),segment:{borderDash:c=>isPred[c.p1DataIndex]?[5,4]:[]},fill:false,spanGaps:true},
+      {label:'Pending Settlement (G)',data:sorted.map(r=>r.pendingTotal),borderColor:'#1D9E75',backgroundColor:'transparent',tension:0.3,pointRadius:isPred.map(p=>p?3:5),segment:{borderDash:c=>isPred[c.p1DataIndex]?[5,4]:[]},fill:false,spanGaps:true},
+      {label:'Diff (b)',data:sorted.map(r=>diffB(r)),borderColor:'#E24B4A',backgroundColor:'rgba(226,75,74,0.05)',tension:0.3,pointRadius:isPred.map(p=>p?3:5),segment:{borderDash:c=>isPred[c.p1DataIndex]?[5,4]:[]},fill:false,spanGaps:true}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const v=c.raw;if(v==null)return null;return c.dataset.label+': '+(v<0?'-':'')+'฿'+Math.abs(Math.round(v)).toLocaleString('th-TH');}}}},
+      scales:{
+        x:{grid:{color:'rgba(128,128,128,0.1)'},ticks:{font:{size:11},autoSkip:false,maxRotation:45}},
+        y:{grid:{color:'rgba(128,128,128,0.1)'},ticks:{font:{size:11},callback:v=>{const a=Math.abs(v);if(a>=1e9)return(v<0?'-':'')+'฿'+(a/1e9).toFixed(1)+'B';if(a>=1e6)return(v<0?'-':'')+'฿'+(a/1e6).toFixed(0)+'M';return(v<0?'-':'')+'฿'+a.toLocaleString('th-TH');}}}
+      }
+    }
+  });
+}
+
+// ─── ADD / DELETE ─────────────────────────────────────────
+function addEntry() {
+  const time=getSelectedTime();
+  const msg=document.getElementById('formMsg');
+  if(!time){msg.textContent='กรุณาเลือกหรือกรอกเวลา';msg.style.color='var(--red)';setTimeout(()=>msg.textContent='',3000);return;}
+  const raw={cimb:parseFloat(document.getElementById('fCIMB').value),k4433:parseFloat(document.getElementById('fK4433').value),pendingTotal:parseFloat(document.getElementById('fPendingTotal').value),dailyWallet:parseFloat(document.getElementById('fDailyWallet').value),availWithdraw:parseFloat(document.getElementById('fAvailWithdraw').value)};
+  if(Object.values(raw).every(v=>isNaN(v))){msg.textContent='กรุณากรอกข้อมูลอย่างน้อย 1 ช่อง';msg.style.color='var(--red)';setTimeout(()=>msg.textContent='',3000);return;}
+  let entry={time,cimb:isNaN(raw.cimb)?null:raw.cimb,k4433:isNaN(raw.k4433)?null:raw.k4433,pendingTotal:isNaN(raw.pendingTotal)?null:raw.pendingTotal,dailyWallet:isNaN(raw.dailyWallet)?null:raw.dailyWallet,availWithdraw:isNaN(raw.availWithdraw)?null:raw.availWithdraw,predicted:false};
+  const cfFields=['cimb','k4433','pendingTotal','dailyWallet','availWithdraw'].filter(f=>isNaN(raw[f]));
+  entry=carryForward(entry);
+  entry.carriedForward=cfFields.some(f=>entry[f]!=null);
+  const existing=records.findIndex(r=>r.time===time&&!r.predicted);
+  if(existing>=0){records[existing]=entry;msg.textContent='อัปเดตข้อมูล '+time+' แล้ว';}
+  else{records.push(entry);msg.textContent='บันทึก '+time+' สำเร็จ';}
+  msg.style.color='var(--teal)';setTimeout(()=>msg.textContent='',4000);
+  renderAll();
+}
+function deleteEntry(time){records=records.filter(r=>!(r.time===time&&!r.predicted));renderAll();}
+function clearForm(){['fCIMB','fK4433','fPendingTotal','fDailyWallet','fAvailWithdraw'].forEach(id=>document.getElementById(id).value='');document.getElementById('fTimeFreeform').value='';}
+
+// ─── EMAIL ────────────────────────────────────────────────
+function saveEmailConfig() {
+  const config = {
+    publicKey: document.getElementById('ejPublicKey').value.trim(),
+    serviceId: document.getElementById('ejServiceId').value.trim(),
+    templateId: document.getElementById('ejTemplateId').value.trim(),
+  };
+  localStorage.setItem('em_emailconfig', JSON.stringify(config));
+  emailConfig = config;
+  const el = document.getElementById('emailStatusMsg');
+  el.className = 'email-status ok';
+  el.textContent = '✓ บันทึก Config แล้ว';
+  document.getElementById('settingsMsg').textContent = '';
+}
+
+function loadEmailConfig() {
+  const c = emailConfig;
+  if(c.publicKey) document.getElementById('ejPublicKey').value = c.publicKey;
+  if(c.serviceId) document.getElementById('ejServiceId').value = c.serviceId;
+  if(c.templateId) document.getElementById('ejTemplateId').value = c.templateId;
+}
+
+async function sendEmailReport(subject, bodyText) {
+  const c = emailConfig;
+  if(!c.publicKey||!c.serviceId||!c.templateId) {
+    return {ok:false, msg:'ยังไม่ได้ตั้งค่า EmailJS — ไปที่ Tab "ตั้งค่า Email"'};
+  }
+  try {
+    emailjs.init(c.publicKey);
+    for(const to of RECIPIENTS) {
+      await emailjs.send(c.serviceId, c.templateId, {
+        to_email: to,
+        subject: subject,
+        message: bodyText,
+      });
+    }
+    return {ok:true};
+  } catch(e) {
+    return {ok:false, msg:'ส่ง Email ไม่สำเร็จ: '+(e.text||e.message||JSON.stringify(e))};
+  }
+}
+
+function buildReportText(dateStr, actualRecords) {
+  const last = [...actualRecords].sort((a,b)=>toMin(b.time)-toMin(a.time))[0];
+  const first = [...actualRecords].sort((a,b)=>toMin(a.time)-toMin(b.time))[0];
+  const finalDB = last ? diffB(last) : null;
+  const openDB = first ? diffB(first) : null;
+  const maxBT = last ? Math.max(...actualRecords.filter(r=>bankTotal(r)).map(r=>bankTotal(r))) : null;
+  const minDB = actualRecords.filter(r=>diffB(r)!=null).length ? Math.min(...actualRecords.filter(r=>diffB(r)!=null).map(r=>diffB(r))) : null;
+
+  let rows = actualRecords.sort((a,b)=>toMin(a.time)-toMin(b.time)).map(r=>{
+    const bt = bankTotal(r);
+    const db = diffB(r);
+    return `${r.time.padEnd(6)} | CIMB: ${String(r.cimb||0).padStart(14)} | K4433: ${String(r.k4433||0).padStart(12)} | Total Bank: ${String(Math.round(bt||0)).padStart(14)} | Avail.W: ${String(Math.round(r.availWithdraw||0)).padStart(14)} | Diff(b): ${String(Math.round(db||0)).padStart(14)}`;
+  }).join('\n');
+
+  return `EasyMoney Tracking — รายงานสรุปประจำวัน
+วันที่: ${dateStr}
+────────────────────────────────────────────────────────────────
+
+สรุปผลวัน:
+• Diff (b) เปิดวัน (${first?.time||'—'}): ${fmt(openDB)}
+• Diff (b) ปิดวัน (${last?.time||'—'}): ${fmt(finalDB)}
+• Bank Balance สูงสุด: ${fmt(maxBT)}
+• Diff (b) ต่ำสุด: ${fmt(minDB)}
+• สถานะปิดวัน: ${finalDB==null?'ไม่มีข้อมูล':finalDB>=0?'✓ ปกติ — Bank พอจ่าย':finalDB>-5000000?'⚠ เฝ้าระวัง':'✗ ขาดสภาพคล่อง'}
+
+รายละเอียดรายชั่วโมง:
+${rows}
+
+────────────────────────────────────────────────────────────────
+ส่งโดยอัตโนมัติจาก EasyMoney Tracking System`;
+}
+
+async function testEmail() {
+  const msg = document.getElementById('settingsMsg');
+  msg.textContent = 'กำลังส่ง...';
+  msg.style.color = 'var(--amber)';
+  const result = await sendEmailReport('[TEST] EasyMoney Test Email', 'นี่คือ email ทดสอบจากระบบ EasyMoney Tracking');
+  if(result.ok) { msg.textContent = '✓ ส่ง Test Email สำเร็จ'; msg.style.color='var(--teal)'; }
+  else { msg.textContent = result.msg; msg.style.color='var(--red)'; }
+}
+
+async function endOfDay() {
+  const actualRecords = records.filter(r=>!r.predicted&&bankTotal(r)!=null);
+  const msg = document.getElementById('eodMsg');
+
+  if(actualRecords.length === 0) {
+    msg.textContent = 'ยังไม่มีข้อมูล — กรุณากรอกข้อมูลก่อน';
+    msg.style.color = 'var(--red)';
+    setTimeout(()=>msg.textContent='',4000);
+    return;
+  }
+
+  const dateStr = todayStr();
+  const key = todayKey();
+  msg.textContent = 'กำลังส่ง email...';
+  msg.style.color = 'var(--amber)';
+
+  // Build report
+  const subject = `EasyMoney สรุปประจำวัน — ${dateStr}`;
+  const body = buildReportText(dateStr, actualRecords);
+
+  // Send email
+  const result = await sendEmailReport(subject, body);
+
+  // Save to history regardless of email status
+  const last = [...actualRecords].sort((a,b)=>toMin(b.time)-toMin(a.time))[0];
+  const first = [...actualRecords].sort((a,b)=>toMin(a.time)-toMin(b.time))[0];
+  const dayEntry = {
+    key, date: dateStr,
+    records: actualRecords,
+    summary: {
+      openDB: diffB(first),
+      closeDB: diffB(last),
+      openTime: first.time,
+      closeTime: last.time,
+      maxBank: Math.max(...actualRecords.filter(r=>bankTotal(r)).map(r=>bankTotal(r))),
+      minDiffB: Math.min(...actualRecords.filter(r=>diffB(r)!=null).map(r=>diffB(r))),
+      entryCount: actualRecords.length,
+      emailSent: result.ok,
+    }
+  };
+
+  // Remove existing entry for same day and prepend
+  history = [dayEntry, ...history.filter(d=>d.key!==key)].slice(0,60); // keep 60 days
+  localStorage.setItem('em_history', JSON.stringify(history));
+
+  if(result.ok) {
+    msg.textContent = '✓ ส่ง Email สำเร็จ! บันทึกประวัติแล้ว กำลังล้างข้อมูล...';
+    msg.style.color = 'var(--teal)';
+  } else {
+    msg.textContent = '⚠ '+result.msg+' (บันทึกประวัติแล้ว แต่ Email ไม่ถึง)';
+    msg.style.color = 'var(--amber)';
+  }
+
+  // Clear today's data after 2 seconds
+  setTimeout(() => {
+    records = [];
+    renderAll();
+    renderHistory();
+    document.getElementById('sAvailInput').value = '';
+    renderScenario();
+    msg.textContent = result.ok ? '✓ เสร็จสิ้น — พร้อมกรอกข้อมูลวันใหม่' : '⚠ บันทึกแล้ว — กรุณาตรวจ EmailJS Config';
+    msg.style.color = result.ok ? 'var(--teal)' : 'var(--amber)';
+    setTimeout(()=>msg.textContent='',6000);
+  }, 2000);
+}
+
+// ─── HISTORY ──────────────────────────────────────────────
+function renderHistory() {
+  const container = document.getElementById('historyList');
+  if(!history.length) {
+    container.innerHTML = '<div class="no-history">ยังไม่มีประวัติ<br><span style="font-size:12px;margin-top:4px;display:block;">ประวัติจะปรากฏหลังกด "ส่งรายงานและปิดวัน"</span></div>';
+    return;
+  }
+  container.innerHTML = history.map(day=>{
+    const s = day.summary;
+    const statusColor = s.closeDB==null?'var(--text2)':s.closeDB>=0?'var(--teal)':s.closeDB>-5000000?'var(--amber)':'var(--red)';
+    const statusText = s.closeDB==null?'ไม่มีข้อมูล':s.closeDB>=0?'ปกติ':s.closeDB>-5000000?'เฝ้าระวัง':'ขาดสภาพคล่อง';
+    const tableRows = day.records.sort((a,b)=>toMin(a.time)-toMin(b.time)).map(r=>{
+      const bt=bankTotal(r), db=diffB(r);
+      const dbColor = db!=null&&db<0?'color:var(--red)':db!=null?'color:var(--teal)':'';
+      return `<tr>
+        <td>${r.time}</td>
+        <td class="r">${fmt(r.cimb)}</td>
+        <td class="r">${fmt(r.k4433)}</td>
+        <td class="r" style="font-weight:600;">${fmt(bt)}</td>
+        <td class="r">${fmt(r.pendingTotal)}</td>
+        <td class="r">${fmt(r.availWithdraw)}</td>
+        <td class="r" style="font-weight:600;${dbColor}">${fmt(db)}</td>
+      </tr>`;
+    }).join('');
+    return `
+      <div class="day-card">
+        <h3>${day.date} <span style="font-size:12px;font-weight:400;color:${statusColor};margin-left:8px;">${statusText}</span>${s.emailSent?'<span style="font-size:11px;color:var(--teal-text);background:var(--teal-bg);padding:2px 7px;border-radius:4px;margin-left:6px;">Email ✓</span>':''}</h3>
+        <div class="day-meta">${s.entryCount} รายการ &nbsp;|&nbsp; เปิดวัน ${s.openTime} → ปิดวัน ${s.closeTime}</div>
+        <div class="day-stats">
+          <div class="ds"><div class="ds-label">Diff (b) เปิดวัน</div><div class="ds-val ${s.openDB>=0?'positive':'negative'}">${fmtS(s.openDB)}</div></div>
+          <div class="ds"><div class="ds-label">Diff (b) ปิดวัน</div><div class="ds-val ${s.closeDB>=0?'positive':'negative'}">${fmtS(s.closeDB)}</div></div>
+          <div class="ds"><div class="ds-label">Bank สูงสุด</div><div class="ds-val">${fmtS(s.maxBank)}</div></div>
+          <div class="ds"><div class="ds-label">Diff (b) ต่ำสุด</div><div class="ds-val ${s.minDiffB>=0?'positive':'negative'}">${fmtS(s.minDiffB)}</div></div>
+        </div>
+        <details>
+          <summary style="font-size:12px;cursor:pointer;color:var(--text2);margin-bottom:8px;">ดูตารางรายชั่วโมง</summary>
+          <div class="table-wrap" style="margin-bottom:0;">
+            <table>
+              <thead><tr><th>เวลา</th><th class="r">CIMB</th><th class="r">K4433</th><th class="r">Total Bank</th><th class="r">Pending (G)</th><th class="r">Avail.W (K)</th><th class="r">Diff (b)</th></tr></thead>
+              <tbody>${tableRows}</tbody>
+            </table>
+          </div>
+        </details>
+      </div>`;
+  }).join('');
+}
+
+// ─── TABS ─────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    const names=['today','history','settings'];
+    t.className = 'tab'+(names[i]===name?' active':'');
+  });
+  document.querySelectorAll('.tab-panel').forEach(p=>p.className='tab-panel');
+  document.getElementById('tab-'+name).className = 'tab-panel active';
+  if(name==='history') renderHistory();
+  if(name==='settings') loadEmailConfig();
+}
+
+// ─── INIT ─────────────────────────────────────────────────
+document.getElementById('headerDate').textContent = todayStr();
+setTimeMode('dropdown');
+renderAll();
+</script>
+</body>
+</html>
