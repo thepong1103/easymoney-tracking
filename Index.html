@@ -141,10 +141,10 @@
   .ds-label { font-size: 10px; color: var(--text2); margin-bottom: 3px; }
   .ds-val { font-size: 14px; font-weight: 600; }
   .no-history { text-align: center; padding: 3rem 1rem; color: var(--text2); font-size: 13px; }
-
+ 
   /* Predict note */
   .predict-note { font-size: 11px; color: var(--text2); padding: 8px 12px; background: var(--surface2); border-radius: var(--radius); margin-bottom: 1rem; }
-
+ 
   @media (max-width: 480px) {
     .app { padding: 1rem 0.75rem 4rem; }
     .metrics { grid-template-columns: 1fr 1fr; }
@@ -153,7 +153,7 @@
 </head>
 <body>
 <div class="app">
-
+ 
   <!-- Header -->
   <div class="header">
     <div>
@@ -162,23 +162,23 @@
     </div>
     <div id="headerBadge" class="badge badge-warn">กำลังโหลด...</div>
   </div>
-
+ 
   <div id="statusBar" class="status-bar">
     <div class="dot dot-warn" id="statusDot"></div>
     <span id="statusMsg">กำลังโหลดข้อมูล...</span>
   </div>
-
+ 
   <!-- Tabs -->
   <div class="tabs">
     <button class="tab active" onclick="switchTab('today')">วันนี้</button>
     <button class="tab" onclick="switchTab('history')">ประวัติรายวัน</button>
     <button class="tab" onclick="switchTab('settings')">ตั้งค่า Email</button>
   </div>
-
+ 
   <!-- TODAY TAB -->
   <div id="tab-today" class="tab-panel active">
     <div class="metrics" id="metricsRow"></div>
-
+ 
     <!-- Scenario -->
     <div class="section-title">Available Withdrawal (Input) — คำนวณยอดคงเหลือ</div>
     <div class="scenario-card">
@@ -191,10 +191,10 @@
       </div>
       <div class="scenario-results" id="scenarioResult"></div>
     </div>
-
+ 
     <!-- Insight -->
     <div class="insight-grid" id="insightGrid"></div>
-
+ 
     <!-- Chart -->
     <div class="chart-card">
       <h3>ยอดเงินรายชั่วโมง — วันนี้</h3>
@@ -209,11 +209,11 @@
         <canvas id="mainChart" role="img" aria-label="กราฟยอดเงินรายชั่วโมง"></canvas>
       </div>
     </div>
-
+ 
     <div class="predict-note">
       <strong>วิธี Predict:</strong> ใช้ข้อมูล 11 วันย้อนหลัง — Diff (b) มักติดลบตอนเช้า และดีขึ้นเรื่อยๆ ตลอดวัน เพราะ Withdraw Success สะสมเพิ่มขึ้น ระบบปรับด้วย hourly improvement weights จาก pattern เฉลี่ย
     </div>
-
+ 
     <!-- Form -->
     <div class="section-title">กรอกข้อมูลรายชั่วโมง</div>
     <div class="form-card">
@@ -261,7 +261,7 @@
         <span id="formMsg" class="form-msg"></span>
       </div>
     </div>
-
+ 
     <!-- Table -->
     <div class="section-title">ตารางข้อมูลวันนี้</div>
     <div class="table-wrap">
@@ -281,7 +281,7 @@
         <tbody id="tableBody"></tbody>
       </table>
     </div>
-
+ 
     <!-- End of day action -->
     <div class="section-title">สรุปปิดวัน</div>
     <div class="form-card" style="background:var(--surface2);">
@@ -293,13 +293,13 @@
       </div>
     </div>
   </div>
-
+ 
   <!-- HISTORY TAB -->
   <div id="tab-history" class="tab-panel">
     <div class="section-title">ประวัติรายวันทั้งหมด</div>
     <div id="historyList"></div>
   </div>
-
+ 
   <!-- SETTINGS TAB -->
   <div id="tab-settings" class="tab-panel">
     <div class="section-title">ตั้งค่า EmailJS</div>
@@ -320,7 +320,7 @@
       </div>
       <div id="emailStatusMsg"></div>
     </div>
-
+ 
     <div class="section-title">วิธีตั้งค่า EmailJS (ฟรี)</div>
     <div class="form-card">
       <ol style="padding-left:1.25rem;font-size:13px;line-height:2.2;">
@@ -339,25 +339,26 @@
       </div>
     </div>
   </div>
-
+ 
 </div>
-
+ 
 <script>
 // ─── CONFIG ───────────────────────────────────────────────
 const RECIPIENTS = ['sudket@t2pco.com', 'piyamas.pl@t2pco.com'];
-
+ 
 const HOUR_IMPROVEMENT_WEIGHTS = {
   6:0.00, 7:0.02, 8:0.08, 9:0.15, 10:0.25, 11:0.35,
   12:0.45, 13:0.58, 14:0.68, 15:0.75, 16:0.82, 17:0.88, 18:0.92
 };
-
+ 
 // ─── STATE ────────────────────────────────────────────────
 let timeMode = 'dropdown';
-let records = [];
+let records = JSON.parse(localStorage.getItem('em_today') || '[]');
+function saveToday() { localStorage.setItem('em_today', JSON.stringify(records.filter(r=>!r.predicted))); }
 let history = JSON.parse(localStorage.getItem('em_history') || '[]');
 let emailConfig = JSON.parse(localStorage.getItem('em_emailconfig') || '{}');
 let chartInstance = null;
-
+ 
 // ─── UTILS ────────────────────────────────────────────────
 function toMin(t) { const [h,m]=t.split(':').map(Number); return h*60+(m||0); }
 function bankTotal(r) { return r.cimb!=null ? r.cimb+(r.k4433||0) : null; }
@@ -381,7 +382,7 @@ function todayKey() {
   const d = new Date();
   return `${String(d.getDate()).padStart(2,'0')}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getFullYear()).slice(-2)}`;
 }
-
+ 
 // ─── TIME MODE ────────────────────────────────────────────
 function setTimeMode(m) {
   timeMode = m;
@@ -402,7 +403,7 @@ function getSelectedTime() {
   if(timeMode==='now') { refreshNow(); return document.getElementById('fTimeNowDisplay').value; }
   return null;
 }
-
+ 
 // ─── CARRY FORWARD ────────────────────────────────────────
 function getLastActual(beforeTime) {
   return [...records].filter(r=>!r.predicted&&toMin(r.time)<toMin(beforeTime))
@@ -421,20 +422,20 @@ function getLatestActual() {
   return [...records].filter(r=>!r.predicted&&bankTotal(r)!=null)
     .sort((a,b)=>toMin(b.time)-toMin(a.time))[0] || null;
 }
-
+ 
 // ─── PREDICT ──────────────────────────────────────────────
 function computePredictions() {
   records = records.filter(r=>!r.predicted);
   const actual = [...records].filter(r=>bankTotal(r)!=null).sort((a,b)=>toMin(a.time)-toMin(b.time));
   if(!actual.length) return;
-
+ 
   const first = actual[0];
   const last = actual[actual.length-1];
   const lastMin = toMin(last.time);
   const lastHour = Math.floor(lastMin/60);
   const morningDB = diffB(first) || -15000000;
   const lastDB = diffB(last);
-
+ 
   let trendRate = {cimb:0, pendingTotal:0, availWithdraw:0, dailyWallet:0};
   if(actual.length >= 2) {
     const prev = actual[actual.length-2];
@@ -444,7 +445,7 @@ function computePredictions() {
     trendRate.availWithdraw = ((last.availWithdraw||0)-(prev.availWithdraw||0))/span;
     trendRate.dailyWallet = ((last.dailyWallet||0)-(prev.dailyWallet||0))/span;
   }
-
+ 
   const filled = new Set(records.map(r=>r.time));
   for(let m=lastMin+60; m<=18*60; m+=60) {
     const h = String(Math.floor(m/60)).padStart(2,'0')+':00';
@@ -470,7 +471,7 @@ function computePredictions() {
   }
   records.sort((a,b)=>toMin(a.time)-toMin(b.time));
 }
-
+ 
 // ─── RENDER ALL ───────────────────────────────────────────
 function renderAll() {
   computePredictions();
@@ -481,7 +482,7 @@ function renderAll() {
   renderTable();
   renderChart();
 }
-
+ 
 function renderStatus() {
   const last = getLatestActual();
   if(!last) return;
@@ -501,7 +502,7 @@ function renderStatus() {
     msg.textContent='Diff (b) ติดลบมาก — ธนาคารไม่เพียงพอต่อ Available Withdrawal';
   }
 }
-
+ 
 function renderMetrics() {
   const actual = [...records].filter(r=>!r.predicted&&bankTotal(r)!=null).sort((a,b)=>toMin(a.time)-toMin(b.time));
   if(!actual.length) { document.getElementById('metricsRow').innerHTML='<div style="color:var(--text2);font-size:13px;padding:1rem 0;">ยังไม่มีข้อมูล — กรอกข้อมูลด้านล่างเพื่อเริ่มต้น</div>'; return; }
@@ -514,7 +515,7 @@ function renderMetrics() {
     <div class="metric"><div class="m-label">อัปเดตล่าสุด</div><div class="m-value" style="font-size:22px;">${last.time}</div><div class="m-sub" style="color:var(--text2);">${actual.length} รายการจริง</div></div>
   `;
 }
-
+ 
 function renderInsights() {
   const actual = [...records].filter(r=>!r.predicted&&bankTotal(r)!=null).sort((a,b)=>toMin(a.time)-toMin(b.time));
   if(!actual.length) { document.getElementById('insightGrid').innerHTML=''; return; }
@@ -534,7 +535,7 @@ function renderInsights() {
     <div class="insight-card"><div class="i-label">Diff (b) ต่ำสุดวันนี้</div><div class="i-val ${minDB>=0?'positive':'negative'}">${fmtS(minDB)}</div><div class="i-sub">จุดเสี่ยงที่สุดที่บันทึกได้</div></div>
   `;
 }
-
+ 
 function renderScenario() {
   const last=getLatestActual();
   const bt=last?bankTotal(last):null;
@@ -549,7 +550,7 @@ function renderScenario() {
     <div class="sr-item ${isEmpty?'':'highlight-warn'}"><div class="sr-label">Break-even</div><div class="sr-val" style="color:var(--amber);">${fmt(bt)}</div><div class="sr-sub">Avail. Withdrawal ห้ามเกินนี้</div></div>
   `;
 }
-
+ 
 function renderTable() {
   const sorted=[...records].sort((a,b)=>toMin(a.time)-toMin(b.time));
   if(!sorted.length) { document.getElementById('tableBody').innerHTML='<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text2);">ยังไม่มีข้อมูล</td></tr>'; return; }
@@ -575,7 +576,7 @@ function renderTable() {
     </tr>`;
   }).join('');
 }
-
+ 
 function renderChart() {
   const sorted=[...records].sort((a,b)=>toMin(a.time)-toMin(b.time));
   const isPred=sorted.map(r=>r.predicted);
@@ -597,7 +598,7 @@ function renderChart() {
     }
   });
 }
-
+ 
 // ─── ADD / DELETE ─────────────────────────────────────────
 function addEntry() {
   const time=getSelectedTime();
@@ -613,11 +614,11 @@ function addEntry() {
   if(existing>=0){records[existing]=entry;msg.textContent='อัปเดตข้อมูล '+time+' แล้ว';}
   else{records.push(entry);msg.textContent='บันทึก '+time+' สำเร็จ';}
   msg.style.color='var(--teal)';setTimeout(()=>msg.textContent='',4000);
-  renderAll();
+  saveToday(); renderAll();
 }
-function deleteEntry(time){records=records.filter(r=>!(r.time===time&&!r.predicted));renderAll();}
+function deleteEntry(time){records=records.filter(r=>!(r.time===time&&!r.predicted));saveToday();renderAll();}
 function clearForm(){['fCIMB','fK4433','fPendingTotal','fDailyWallet','fAvailWithdraw'].forEach(id=>document.getElementById(id).value='');document.getElementById('fTimeFreeform').value='';}
-
+ 
 // ─── EMAIL ────────────────────────────────────────────────
 function saveEmailConfig() {
   const config = {
@@ -632,14 +633,14 @@ function saveEmailConfig() {
   el.textContent = '✓ บันทึก Config แล้ว';
   document.getElementById('settingsMsg').textContent = '';
 }
-
+ 
 function loadEmailConfig() {
   const c = emailConfig;
   if(c.publicKey) document.getElementById('ejPublicKey').value = c.publicKey;
   if(c.serviceId) document.getElementById('ejServiceId').value = c.serviceId;
   if(c.templateId) document.getElementById('ejTemplateId').value = c.templateId;
 }
-
+ 
 async function sendEmailReport(subject, bodyText) {
   const c = emailConfig;
   if(!c.publicKey||!c.serviceId||!c.templateId) {
@@ -660,7 +661,7 @@ async function sendEmailReport(subject, bodyText) {
     return {ok:false, msg:'ส่ง Email ไม่สำเร็จ: '+(e.text||e.message||JSON.stringify(e))};
   }
 }
-
+ 
 function buildReportHTML(dateStr, actualRecords) {
   const sorted = [...actualRecords].sort((a,b)=>toMin(a.time)-toMin(b.time));
   const last = sorted[sorted.length-1];
@@ -669,10 +670,10 @@ function buildReportHTML(dateStr, actualRecords) {
   const openDB = first ? diffB(first) : null;
   const maxBT = Math.max(...sorted.filter(r=>bankTotal(r)).map(r=>bankTotal(r)));
   const minDB = Math.min(...sorted.filter(r=>diffB(r)!=null).map(r=>diffB(r)));
-
+ 
   const statusColor = finalDB==null?'#888':finalDB>=0?'#1D9E75':finalDB>-5000000?'#BA7517':'#E24B4A';
   const statusText = finalDB==null?'ไม่มีข้อมูล':finalDB>=0?'✓ ปกติ — Bank พอจ่าย':finalDB>-5000000?'⚠ เฝ้าระวัง':'✗ ขาดสภาพคล่อง';
-
+ 
   const summaryCards = [
     {label:'Diff (b) เปิดวัน ('+first?.time+')', value:fmt(openDB), color: openDB>=0?'#1D9E75':'#E24B4A'},
     {label:'Diff (b) ปิดวัน ('+last?.time+')',  value:fmt(finalDB), color: finalDB>=0?'#1D9E75':'#E24B4A'},
@@ -685,7 +686,7 @@ function buildReportHTML(dateStr, actualRecords) {
         <div style="font-size:17px;font-weight:700;color:${c.color};">${c.value}</div>
       </div>
     </td>`).join('');
-
+ 
   const tableRows = sorted.map(r=>{
     const bt = bankTotal(r);
     const db = diffB(r);
@@ -701,30 +702,30 @@ function buildReportHTML(dateStr, actualRecords) {
       <td style="padding:8px 12px;text-align:right;font-weight:700;color:${dbColor};border-bottom:1px solid #eee;">${fmt(db)}</td>
     </tr>`;
   }).join('');
-
+ 
   return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f0ede8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <div style="max-width:680px;margin:32px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-
+ 
   <!-- Header -->
   <div style="background:#1a1a18;padding:28px 32px;">
     <div style="font-size:11px;color:#888;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">รายงานสรุปประจำวัน</div>
     <div style="font-size:22px;font-weight:700;color:#ffffff;">EasyMoney Tracking</div>
     <div style="font-size:13px;color:#aaa;margin-top:4px;">${dateStr}</div>
   </div>
-
+ 
   <!-- Status banner -->
   <div style="background:${statusColor};padding:12px 32px;">
     <div style="font-size:14px;font-weight:600;color:#ffffff;">${statusText}</div>
   </div>
-
+ 
   <!-- Summary cards -->
   <div style="padding:24px 26px 8px;">
     <div style="font-size:11px;font-weight:600;color:#888;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:12px;">สรุปผลวัน</div>
     <table style="width:100%;border-collapse:collapse;"><tr>${summaryCards}</tr></table>
   </div>
-
+ 
   <!-- Detail table -->
   <div style="padding:24px 32px 32px;">
     <div style="font-size:11px;font-weight:600;color:#888;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:12px;">รายละเอียดรายชั่วโมง</div>
@@ -743,16 +744,16 @@ function buildReportHTML(dateStr, actualRecords) {
       <tbody>${tableRows}</tbody>
     </table>
   </div>
-
+ 
   <!-- Footer -->
   <div style="background:#f5f5f2;padding:16px 32px;border-top:1px solid #eee;">
     <div style="font-size:11px;color:#aaa;">ส่งโดยอัตโนมัติจาก EasyMoney Tracking System &nbsp;·&nbsp; ${dateStr}</div>
   </div>
-
+ 
 </div>
 </body></html>`;
 }
-
+ 
 async function testEmail() {
   const msg = document.getElementById('settingsMsg');
   msg.textContent = 'กำลังส่ง...';
@@ -765,30 +766,30 @@ async function testEmail() {
   if(result.ok) { msg.textContent = '✓ ส่ง Test Email สำเร็จ'; msg.style.color='var(--teal)'; }
   else { msg.textContent = result.msg; msg.style.color='var(--red)'; }
 }
-
+ 
 async function endOfDay() {
   const actualRecords = records.filter(r=>!r.predicted&&bankTotal(r)!=null);
   const msg = document.getElementById('eodMsg');
-
+ 
   if(actualRecords.length === 0) {
     msg.textContent = 'ยังไม่มีข้อมูล — กรุณากรอกข้อมูลก่อน';
     msg.style.color = 'var(--red)';
     setTimeout(()=>msg.textContent='',4000);
     return;
   }
-
+ 
   const dateStr = todayStr();
   const key = todayKey();
   msg.textContent = 'กำลังส่ง email...';
   msg.style.color = 'var(--amber)';
-
+ 
   // Build report
   const subject = `EasyMoney สรุปประจำวัน — ${dateStr}`;
   const body = buildReportHTML(dateStr, actualRecords);
-
+ 
   // Send email
   const result = await sendEmailReport(subject, body);
-
+ 
   // Save to history regardless of email status
   const last = [...actualRecords].sort((a,b)=>toMin(b.time)-toMin(a.time))[0];
   const first = [...actualRecords].sort((a,b)=>toMin(a.time)-toMin(b.time))[0];
@@ -806,11 +807,11 @@ async function endOfDay() {
       emailSent: result.ok,
     }
   };
-
+ 
   // Remove existing entry for same day and prepend
   history = [dayEntry, ...history.filter(d=>d.key!==key)].slice(0,60); // keep 60 days
   localStorage.setItem('em_history', JSON.stringify(history));
-
+ 
   if(result.ok) {
     msg.textContent = '✓ ส่ง Email สำเร็จ! บันทึกประวัติแล้ว กำลังล้างข้อมูล...';
     msg.style.color = 'var(--teal)';
@@ -818,10 +819,10 @@ async function endOfDay() {
     msg.textContent = '⚠ '+result.msg+' (บันทึกประวัติแล้ว แต่ Email ไม่ถึง)';
     msg.style.color = 'var(--amber)';
   }
-
+ 
   // Clear today's data after 2 seconds
   setTimeout(() => {
-    records = [];
+    records = []; localStorage.removeItem('em_today');
     renderAll();
     renderHistory();
     document.getElementById('sAvailInput').value = '';
@@ -831,7 +832,7 @@ async function endOfDay() {
     setTimeout(()=>msg.textContent='',6000);
   }, 2000);
 }
-
+ 
 // ─── HISTORY ──────────────────────────────────────────────
 function renderHistory() {
   const container = document.getElementById('historyList');
@@ -878,7 +879,7 @@ function renderHistory() {
       </div>`;
   }).join('');
 }
-
+ 
 // ─── TABS ─────────────────────────────────────────────────
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach((t,i)=>{
@@ -890,7 +891,7 @@ function switchTab(name) {
   if(name==='history') renderHistory();
   if(name==='settings') loadEmailConfig();
 }
-
+ 
 // ─── INIT ─────────────────────────────────────────────────
 document.getElementById('headerDate').textContent = todayStr();
 setTimeMode('dropdown');
